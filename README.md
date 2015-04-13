@@ -20,10 +20,24 @@ To use this class to get all entries in the User table;
         // $row data
     }
 
-#### With conditions ####
+#### With 1 condition ####
     $table   = 'User';
     $select  = new select\Select($table);
     $select->eq('FirstName', 'John'); // Only show users who's firstname is John
+    $results = $select->execute->getRows(); // returns a generator
+    foreach ($results as $row) {
+        // $row data
+    }
+
+#### With condition chain ####
+    $table   = 'User';
+    $select  = (new select\Select($table))
+                ->eq('FirstName', 'John') 
+                ->startOr()
+                    ->eq('LastName', 'Koniges')
+                    ->eq('LastName', 'Smith')
+                ->endOr()
+                ->eq('Disabled', 'false');
     $results = $select->execute->getRows(); // returns a generator
     foreach ($results as $row) {
         // $row data
