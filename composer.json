@@ -1,0 +1,7 @@
+{
+    "name": "venar/select",
+    "description": "PHP Class to build queries for MySQL. Allows you to build chains of conditions. The goal of this class is to encapsulate PHP's interactions with MySQL to reduce errors in writing queries and make creating stored procedures simple.",
+    "require": {
+        "php": ">=5.5.0"
+    }
+}

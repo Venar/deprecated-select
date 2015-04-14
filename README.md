@@ -1,44 +1,14 @@
 Select MySQL Class for PHP
 ========================
 
-The official anime detour application.
+PHP Class to build queries for MySQL. Allows you to build chains of conditions. The goal of this class is to 
+encapsulate PHP's interactions with MySQL to reduce errors in writing queries and make creating stored procedures simple.
 
 Requirements
 ------------
 
 This project requires PHP 5.5+ and MySQL
 
-### Examples ###
+### Documentation ###
 
-To use this class to get all entries in the User table;
-
-#### Simple extraction ####
-    $table   = 'User';
-    $select  = new select\Select($table);
-    $results = $select->execute->getRows(); // returns a generator
-    foreach ($results as $row) {
-        // $row data
-    }
-
-#### With 1 condition ####
-    $table   = 'User';
-    $select  = new select\Select($table);
-    $select->eq('FirstName', 'John'); // Only show users who's firstname is John
-    $results = $select->execute->getRows(); // returns a generator
-    foreach ($results as $row) {
-        // $row data
-    }
-
-#### With condition chain ####
-    $table   = 'User';
-    $select  = (new select\Select($table))
-                ->eq('FirstName', 'John') 
-                ->startOr()
-                    ->eq('LastName', 'Koniges')
-                    ->eq('LastName', 'Smith')
-                ->endOr()
-                ->eq('Disabled', 'false');
-    $results = $select->execute->getRows(); // returns a generator
-    foreach ($results as $row) {
-        // $row data
-    }
+[Examples and Documentation](www.github.com/Venar/select/tree/master/docs)
