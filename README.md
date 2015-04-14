@@ -11,4 +11,4 @@ This project requires PHP 5.5+ and MySQL
 
 ### Documentation ###
 
-[Examples and Documentation](www.github.com/Venar/select/tree/master/docs)
+[Examples and Documentation](docs/GETTING_STARTED.md)
