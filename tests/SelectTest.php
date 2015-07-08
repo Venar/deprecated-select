@@ -11,19 +11,21 @@
 
 namespace select;
 
-class SelectTest extends \PHPUnit_Framework_TestCase {
+class SelectTest extends \PHPUnit_Framework_TestCase
+{
 
-	/**
-	 * @covers Select::newSelect
-	 * @uses   Select::__construct
-	 * @uses   Select::getQuery
-	 */
-	public function testConstructorTableNameSelect() {
-		$select = new Select('TableName');
+    /**
+     * @covers Select::newSelect
+     * @uses   Select::__construct
+     * @uses   Select::getQuery
+     */
+    public function testConstructorTableNameSelect()
+    {
+        $select = new Select('TableName');
 
-		$assertSql = 'SELECT * FROM TableName';
+        $assertSql = 'SELECT * FROM TableName';
 
-		// Assert
-		$this->assertEquals($select->getQuery(), $assertSql);
-	}
+        // Assert
+        $this->assertEquals($select->getQuery(), $assertSql);
+    }
 }

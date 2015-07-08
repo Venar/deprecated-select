@@ -14,13 +14,15 @@ namespace select;
 /**
  * Param is just an object to better hold data than an array if manipulation is later needed
  */
-class Param {
-	public $type;
-	public $value;
-	public $placeholder;
+class Param
+{
+    public $type;
+    public $value;
+    public $placeholder;
 
-	public function __construct($value, $type = \PDO::PARAM_STR) {
-		$this->value  = $value;
-		$this->type   = $type;
-	}
+    public function __construct($value, $type = \PDO::PARAM_STR)
+    {
+        $this->value = $value;
+        $this->type = $type;
+    }
 }
