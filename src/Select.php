@@ -13,35 +13,31 @@ namespace select;
 
 class Select
 {
+    /* @var $pdo \PDO */
+    protected $pdo;
+    protected $booleanTrue = 1;
+    protected $booleanFalse = 0;
     private $statement = '';
     private $where_clause = '';
     private $set_clause = '';
-
     private $offset = null;
     private $limit = null;
     private $group_by = null;
     private $order_by = null;
-
     private $params = array();
-
+    private $type = null;
     private $uuid = null;
     private $current_ph = 0;
 
+    // If your database uses enum for true false, or other values overwrite them here in your class
     private $where_mode = array();
-
     /* @var $result \PDOStatement */
     private $result;
-
-    /* @var $pdo \PDO */
-    private $pdo;
-
-    // If your database uses enum for true false, or other values overwrite them here in your class
-    protected $booleanTrue = 1;
-    protected $booleanFalse = 0;
 
     /**
      * Example:
      * $select = new Select('SELECT * FROM Test');
+     *
      * @param string $sql You can pass in a whole SQL command, or the start of one
      * @param string $type The kind of QUERY this is: SELECT, UPDATE, INSERT, DELETE
      * @param \PDO $pdo Your PDO class object of a valid connection to the database
@@ -50,23 +46,24 @@ class Select
     {
         $this->uuid = uniqid('param_');
         $this->where_mode[] = 'AND';
+        $this->type = $type;
         if (!is_null($sql)) {
             if ($type == 'SELECT') {
                 $words = explode(' ', $sql);
                 if (count($words) == 1) {
-                    $this->statement = 'SELECT * FROM `' . $sql . '`';
+                    $this->statement = 'SELECT * FROM ' . $sql . '';
                 } else {
                     $this->statement = $sql;
                 }
             } else {
                 if ($type == 'UPDATE') {
-                    $this->statement = 'UPDATE `' . $sql . '`';
+                    $this->statement = 'UPDATE ' . $sql . '';
                 } else {
                     if ($type == 'INSERT') {
-                        $this->statement = 'INSERT INTO `' . $sql . '`';
+                        $this->statement = 'INSERT INTO ' . $sql . '';
                     } else {
                         if ($type == 'DELETE') {
-                            $this->statement = 'DELETE FROM `' . $sql . '`';
+                            $this->statement = 'DELETE FROM ' . $sql . '';
                         }
                     }
                 }
@@ -78,32 +75,9 @@ class Select
         }
     }
 
-    private function connect()
-    {
-        if (!$this->pdo instanceof \PDO) {
-            $this->SetConnection();
-        }
-
-        if ($this->pdo instanceof \PDO) {
-            return true;
-        }
-
-        return false;
-    }
-
-    /**
-     * This class will let a class extending this to set their own PDO object automatically without passing it in
-     *   the constructor.
-     * Classes that extend this class should overwrite this method with their default way to get a db object.
-     */
-    protected function setConnection()
-    {
-        //
-        return;
-    }
-
     /**
      * Closes an and control group
+     *
      * @return \select\Select
      */
     public function endAnd()
@@ -120,7 +94,30 @@ class Select
     }
 
     /**
+     * This end the current control group conjunction. Removing the starting ( if no data inside it.
+     *
+     * @param $finalRemoval bool Allow this to be the final time that we are removing a conjunction
+     */
+    private function endConjunction($finalRemoval = false)
+    {
+        if (!$finalRemoval && count($this->where_mode) == 1) {
+            // We cannot end the final conjunction
+            return;
+        }
+
+        // MySQL will error if it sees a (), this is to remove those cases
+        if (substr($this->where_clause, -1) == "(") {
+            // We remove the last two characters since when we added it, it was a space then (
+            $this->where_clause = substr($this->where_clause, 0, -2);
+        } else {
+            $this->where_clause .= ")";
+        }
+        array_pop($this->where_mode);
+    }
+
+    /**
      * Closes an or control group
+     *
      * @return \select\Select
      */
     public function endOr()
@@ -155,6 +152,41 @@ class Select
     }
 
     /**
+     * This adds an AND or OR between fields based on what is the current type.
+     */
+    private function addConjunction()
+    {
+        if ($this->where_clause != '' && substr($this->where_clause, -1) != '(') {
+            $this->where_clause = rtrim($this->where_clause) . " \n " . end($this->where_mode) . " ";
+        }
+    }
+
+    /**
+     * This creates a param object and generates a palceholder for it
+     *
+     * @param mixed $value What value are you comparing
+     * @param int $type What variable type is this?
+     * @return string The Placeholder string for the prepared statement
+     */
+    private function addParam($value, $type = \PDO::PARAM_STR)
+    {
+        $param = new Param($value, $type);
+        $param->placeholder = $this->generatePlaceholder();
+        $this->params[] = $param;
+
+        return ':' . $param->placeholder;
+    }
+
+    /**
+     * This is the placeholder string for each variable
+     * @return string
+     */
+    private function generatePlaceholder()
+    {
+        return $this->uuid . $this->current_ph++;
+    }
+
+    /**
      * Is the value greater than or equal to the field
      *
      * @param string $field What is the Table field
@@ -168,26 +200,6 @@ class Select
             $this->addConjunction();
             $this->where_clause .= ' ' . $field . ' >= ' . $this->addParam($value, $type);
         }
-
-        return $this;
-    }
-
-    /**
-     * Compare the two values.
-     *
-     * @param string $field What is the Table field
-     * @param mixed $value What value are you comparing
-     * @param int $type What variable type is this?
-     * @return \select\Select
-     */
-    public function eq($field, $value, $type = \PDO::PARAM_STR)
-    {
-        // Convert a bool into the literal strings used by enum in the db layer
-        if (is_bool($value)) {
-            $value = $value ? $this->$booleanTrue : $this->$booleanFalse;
-        }
-        $this->SetConnection();
-        $this->where_clause .= ' ' . $field . ' = ' . $this->addParam($value, $type);
 
         return $this;
     }
@@ -216,6 +228,17 @@ class Select
         }
 
         return $this;
+    }
+
+    /**
+     * This class will let a class extending this to set their own PDO object automatically without passing it in
+     *   the constructor.
+     * Classes that extend this class should overwrite this method with their default way to get a db object.
+     */
+    protected function setConnection()
+    {
+        //
+        return;
     }
 
     /**
@@ -267,6 +290,26 @@ class Select
     }
 
     /**
+     * Compare the two values.
+     *
+     * @param string $field What is the Table field
+     * @param mixed $value What value are you comparing
+     * @param int $type What variable type is this?
+     * @return \select\Select
+     */
+    public function eq($field, $value, $type = \PDO::PARAM_STR)
+    {
+        // Convert a bool into the literal strings used by enum in the db layer
+        if (is_bool($value)) {
+            $value = $value ? $this->$booleanTrue : $this->$booleanFalse;
+        }
+        $this->SetConnection();
+        $this->where_clause .= ' ' . $field . ' = ' . $this->addParam($value, $type);
+
+        return $this;
+    }
+
+    /**
      * Is the value less than the field
      *
      * @param string $field What is the Table field
@@ -304,14 +347,16 @@ class Select
 
     /**
      * This executes the query and does the PDO Statements.
-     * @param boolean $debug Turn on debug settings out output
+     *
+     * @throws \select\SelectException
      * @return \select\Select
      */
-    public function execute($debug = false)
+    public function execute()
     {
         if (!$this->connect()) {
-            return false;
+            throw new SelectException('Could not connect to database.');
         }
+        //var_dump($this->pdo->getAttribute(\PDO::ATTR_DRIVER_NAME)); echo '<br><br><br>';
 
         // If someone didn't close all control groups, we close them for them
         // 1 is always left in the stack as the base, so we don't pop that off
@@ -329,17 +374,11 @@ class Select
             $stmt->bindParam(':' . $param->placeholder, $param->value, $param->type);
         }
 
-        if (!$debug) {
-            // $stmt->execute() returns a bool if it worked or not... we will extend use later
-            $result = $stmt->execute();
-            if (!$result) {
-                error_log('Bad Query: ' . $query . PHP_EOL);
-                //echo $query;
-            }
-        } else {
-            return $query;
+        // $stmt->execute() returns a bool if it worked or not... we will extend use later
+        $result = $stmt->execute();
+        if (!$result) {
+            throw new SelectException($stmt->errorInfo(), $stmt->errorCode());
         }
-
         // The $stmt now has the results and we stash those
         $this->result = $stmt;
 
@@ -347,15 +386,25 @@ class Select
     }
 
     /**
-     * This will last insert ID.
-     * @return array
+     * Creates a PDO connection to the database if one is not already defined
+     *
+     * @return bool
      */
-    public function getInsertId()
+    private function connect()
     {
-        return $this->pdo->lastInsertId();
+        if (!$this->pdo instanceof \PDO) {
+            $this->SetConnection();
+        }
+
+        if ($this->pdo instanceof \PDO) {
+            return true;
+        }
+
+        return false;
     }
 
     /**
+     * Generates the query that will be used
      *
      * @return string
      */
@@ -392,15 +441,18 @@ class Select
     }
 
     /**
-     * @return Param[] returns an Array of the Params for this object.
+     * This will last insert ID.
+     *
+     * @return array
      */
-    public function getParams()
+    public function getInsertId()
     {
-        return $this->params;
+        return $this->pdo->lastInsertId();
     }
 
     /**
      * This will return an MD Array of ALL of the results. Does not use a generator, PHP 5.5 safe.
+     *
      * @param int $fetchType
      * @return array
      */
@@ -422,6 +474,7 @@ class Select
 
     /**
      * This will return an MD Array of ALL of the results.
+     *
      * @param int $fetchType
      * @return \Generator
      */
@@ -438,6 +491,7 @@ class Select
 
     /**
      * This will return an MD Array of all of the results.
+     *
      * @return array
      */
     public function getRowCount()
@@ -475,6 +529,7 @@ class Select
 
     /**
      * Sets the grouping of the Query
+     *
      * @param string $group_by What fields should be grouped by?
      * @return \select\Select
      */
@@ -483,6 +538,22 @@ class Select
         $this->group_by = $group_by;
 
         return $this;
+    }
+
+    /**
+     * Takes in multiple types
+     * 1) array() - An array of all values to look for, this is slower the larger the array
+     * 2) String  - This is a query to run, you should not use any variables to protect against injection
+     * 3) Select object (NOT YET IMPLIMENTED)
+     *
+     * @param string $field What is the Table field
+     * @param mixed $value What value are you comparing
+     * @param int $type What variable type is this?
+     * @return \select\Select
+     */
+    public function notIn($field, $value, $type = \PDO::PARAM_STR)
+    {
+        return $this->in($field, $value, $type, true);
     }
 
     /**
@@ -530,19 +601,16 @@ class Select
     }
 
     /**
-     * Takes in multiple types
-     * 1) array() - An array of all values to look for, this is slower the larger the array
-     * 2) String  - This is a query to run, you should not use any variables to protect against injection
-     * 3) Select object (NOT YET IMPLIMENTED)
+     * Returns an array for all parameters tracked by this object.
      *
-     * @param string $field What is the Table field
-     * @param mixed $value What value are you comparing
-     * @param int $type What variable type is this?
-     * @return \select\Select
+     * This is used by this class when you pass another Select class in as part of an in clause. This allows it to
+     *   only do one abstraction.
+     *
+     * @return Param[] returns an Array of the Params for this object.
      */
-    public function notIn($field, $value, $type = \PDO::PARAM_STR)
+    public function getParams()
     {
-        return $this->in($field, $value, $type, true);
+        return $this->params;
     }
 
     /**
@@ -570,6 +638,7 @@ class Select
 
     /**
      * Sets the limit of the Query
+     *
      * @param int $limit What is limit of rows that should be returned
      * @return \select\Select
      */
@@ -604,6 +673,7 @@ class Select
 
     /**
      * Sets the limit of the Query
+     *
      * @param int $offset What is offset of rows that should be returned
      * @return \select\Select
      */
@@ -618,6 +688,7 @@ class Select
 
     /**
      * Sets the order of the Query
+     *
      * @param string $order_by What should this order by
      * @return \select\Select
      */
@@ -630,6 +701,7 @@ class Select
 
     /**
      * Sets values for inserting or updating
+     *
      * @param string $field What is the Table field
      * @param mixed $value What value are you comparing
      * @param int $type What variable type is this?
@@ -646,7 +718,8 @@ class Select
     }
 
     /**
-     * This starts a new control group. All added items will be seperated by AND
+     * This starts a new control group. All added items will be separated by AND
+     *
      * @return \select\Select
      */
     public function startAnd()
@@ -659,7 +732,8 @@ class Select
     }
 
     /**
-     * This starts a new control group. All added items will be seperated by OR
+     * This starts a new control group. All added items will be separated by OR
+     *
      * @return \select\Select
      */
     public function startOr()
@@ -669,59 +743,5 @@ class Select
         $this->where_mode[] = "OR";
 
         return $this;
-    }
-
-    /**
-     * This adds an AND or OR between fields based on what is the current type.
-     */
-    private function addConjunction()
-    {
-        if ($this->where_clause != '' && substr($this->where_clause, -1) != '(') {
-            $this->where_clause = rtrim($this->where_clause) . " \n " . end($this->where_mode) . " ";
-        }
-    }
-
-    /**
-     * This creates a param object and generates a palceholder for it
-     * @param mixed $value What value are you comparing
-     * @param int $type What variable type is this?
-     * @return string The Placeholder string for the prepared statement
-     */
-    private function addParam($value, $type = \PDO::PARAM_STR)
-    {
-        $param = new Param($value, $type);
-        $param->placeholder = $this->generatePlaceholder();
-        $this->params[] = $param;
-
-        return ':' . $param->placeholder;
-    }
-
-    /**
-     * This end the current control group conjunction. Removing the starting ( if no data inside it.
-     */
-    private function endConjunction($finalRemoval = false)
-    {
-        if (!$finalRemoval && count($this->where_mode) == 1) {
-            // We cannot end the final conjunction
-            return;
-        }
-
-        // MySQL will error if it sees a (), this is to remove those cases
-        if (substr($this->where_clause, -1) == "(") {
-            // We remove the last two characters since when we added it, it was a space then (
-            $this->where_clause = substr($this->where_clause, 0, -2);
-        } else {
-            $this->where_clause .= ")";
-        }
-        array_pop($this->where_mode);
-    }
-
-    /**
-     * This is the placeholder string for each variable
-     * @return string
-     */
-    private function generatePlaceholder()
-    {
-        return $this->uuid . $this->current_ph++;
     }
 }
