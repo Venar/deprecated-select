@@ -42,32 +42,29 @@ class Select
      * @param string $type The kind of QUERY this is: SELECT, UPDATE, INSERT, DELETE
      * @param \PDO $pdo Your PDO class object of a valid connection to the database
      */
-    public function __construct($sql = null, $type = 'SELECT', $pdo = null)
+    public function __construct($sql, $type = 'SELECT', $pdo = null)
     {
         $this->uuid = uniqid('param_');
         $this->where_mode[] = 'AND';
         $this->type = $type;
-        if (!is_null($sql)) {
-            if ($type == 'SELECT') {
-                $words = explode(' ', $sql);
-                if (count($words) == 1) {
+
+        switch ($sql) {
+            case 'UPDATE':
+                $this->statement = 'UPDATE ' . $sql . '';
+                break;
+            case 'INSERT':
+                $this->statement = 'INSERT INTO ' . $sql . '';
+                break;
+            case 'DELETE':
+                $this->statement = 'DELETE FROM ' . $sql . '';
+                break;
+            case 'SELECT':
+            default:
+                $this->statement = $sql;
+                if (strpos($sql, ' ') === false) {
                     $this->statement = 'SELECT * FROM ' . $sql . '';
-                } else {
-                    $this->statement = $sql;
                 }
-            } else {
-                if ($type == 'UPDATE') {
-                    $this->statement = 'UPDATE ' . $sql . '';
-                } else {
-                    if ($type == 'INSERT') {
-                        $this->statement = 'INSERT INTO ' . $sql . '';
-                    } else {
-                        if ($type == 'DELETE') {
-                            $this->statement = 'DELETE FROM ' . $sql . '';
-                        }
-                    }
-                }
-            }
+                break;
         }
 
         if ($pdo instanceof \PDO) {
@@ -377,7 +374,9 @@ class Select
         // $stmt->execute() returns a bool if it worked or not... we will extend use later
         $result = $stmt->execute();
         if (!$result) {
-            throw new SelectException($stmt->errorInfo(), $stmt->errorCode());
+            $errorCode   = $stmt->errorCode();
+            $errorString = $stmt->errorInfo()[2];
+            throw new SelectException($errorString, $errorCode);
         }
         // The $stmt now has the results and we stash those
         $this->result = $stmt;
