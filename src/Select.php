@@ -463,7 +463,7 @@ class Select
             throw new SelectException('All rows being added or updated must have the same number of values.');
         }
 
-        if (count(array_diff_key($this->setFields, $this->setValues[0])) > 0) {
+        if (count($this->setValues) > 0 && count(array_diff_key($this->setFields, $this->setValues[0])) > 0) {
             throw new SelectException('All rows must be using the same fields for inserting.');
         }
 
