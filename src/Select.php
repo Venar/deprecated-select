@@ -18,16 +18,18 @@ class Select
     protected $booleanTrue = 1;
     protected $booleanFalse = 0;
     private $statement = '';
-    private $where_clause = '';
-    private $set_clause = '';
+    private $whereClause = '';
+    private $setFields = array();
+    private $setValues = array();
+    private $setTmp = array();
     private $offset = null;
     private $limit = null;
-    private $group_by = null;
-    private $order_by = null;
+    private $groupBy = null;
+    private $orderBy = null;
     private $params = array();
     private $type = null;
     private $uuid = null;
-    private $current_ph = 0;
+    private $currentPlaceholder = 0;
 
     // If your database uses enum for true false, or other values overwrite them here in your class
     private $where_mode = array();
@@ -48,7 +50,7 @@ class Select
         $this->where_mode[] = 'AND';
         $this->type = $type;
 
-        switch ($sql) {
+        switch ($type) {
             case 'UPDATE':
                 $this->statement = 'UPDATE ' . $sql . '';
                 break;
@@ -103,11 +105,11 @@ class Select
         }
 
         // MySQL will error if it sees a (), this is to remove those cases
-        if (substr($this->where_clause, -1) == "(") {
+        if (substr($this->whereClause, -1) == "(") {
             // We remove the last two characters since when we added it, it was a space then (
-            $this->where_clause = substr($this->where_clause, 0, -2);
+            $this->whereClause = substr($this->whereClause, 0, -2);
         } else {
-            $this->where_clause .= ")";
+            $this->whereClause .= ")";
         }
         array_pop($this->where_mode);
     }
@@ -142,7 +144,7 @@ class Select
     {
         if (trim($value) != "" || is_bool($value)) {
             $this->addConjunction();
-            $this->where_clause .= ' ' . $field . ' > ' . $this->addParam($value, $type);
+            $this->whereClause .= ' ' . $field . ' > ' . $this->addParam($value, $type);
         }
 
         return $this;
@@ -153,8 +155,8 @@ class Select
      */
     private function addConjunction()
     {
-        if ($this->where_clause != '' && substr($this->where_clause, -1) != '(') {
-            $this->where_clause = rtrim($this->where_clause) . " \n " . end($this->where_mode) . " ";
+        if ($this->whereClause != '' && substr($this->whereClause, -1) != '(') {
+            $this->whereClause = rtrim($this->whereClause) . " \n " . end($this->where_mode) . " ";
         }
     }
 
@@ -180,7 +182,7 @@ class Select
      */
     private function generatePlaceholder()
     {
-        return $this->uuid . $this->current_ph++;
+        return $this->uuid . $this->currentPlaceholder++;
     }
 
     /**
@@ -195,7 +197,7 @@ class Select
     {
         if (trim($value) != "" || is_bool($value)) {
             $this->addConjunction();
-            $this->where_clause .= ' ' . $field . ' >= ' . $this->addParam($value, $type);
+            $this->whereClause .= ' ' . $field . ' >= ' . $this->addParam($value, $type);
         }
 
         return $this;
@@ -221,7 +223,7 @@ class Select
                 $value = $value ? $this->$booleanTrue : $this->$booleanFalse;
             }
             $this->SetConnection();
-            $this->where_clause .= ' ' . $field . ' = ' . $this->addParam($value, $type);
+            $this->whereClause .= ' ' . $field . ' = ' . $this->addParam($value, $type);
         }
 
         return $this;
@@ -247,7 +249,7 @@ class Select
     public function eqNull($field)
     {
         $this->SetConnection();
-        $this->where_clause .= ' ' . $field . ' IS NULL ';
+        $this->whereClause .= ' ' . $field . ' IS NULL ';
 
         return $this;
     }
@@ -261,7 +263,7 @@ class Select
     public function eqNotNull($field)
     {
         $this->SetConnection();
-        $this->where_clause .= ' ' . $field . ' IS NOT NULL ';
+        $this->whereClause .= ' ' . $field . ' IS NOT NULL ';
 
         return $this;
     }
@@ -280,7 +282,7 @@ class Select
             $this->eq($field, $value, $type);
         } else {
             $this->SetConnection();
-            $this->where_clause .= ' 1 = 0';
+            $this->whereClause .= ' 1 = 0';
         }
 
         return $this;
@@ -301,7 +303,7 @@ class Select
             $value = $value ? $this->$booleanTrue : $this->$booleanFalse;
         }
         $this->SetConnection();
-        $this->where_clause .= ' ' . $field . ' = ' . $this->addParam($value, $type);
+        $this->whereClause .= ' ' . $field . ' = ' . $this->addParam($value, $type);
 
         return $this;
     }
@@ -318,7 +320,7 @@ class Select
     {
         if (trim($value) != "" || is_bool($value)) {
             $this->addConjunction();
-            $this->where_clause .= ' ' . $field . ' < ' . $this->addParam($value, $type);
+            $this->whereClause .= ' ' . $field . ' < ' . $this->addParam($value, $type);
         }
 
         return $this;
@@ -336,7 +338,7 @@ class Select
     {
         if (trim($value) != "" || is_bool($value)) {
             $this->addConjunction();
-            $this->where_clause .= ' ' . $field . ' <= ' . $this->addParam($value, $type);
+            $this->whereClause .= ' ' . $field . ' <= ' . $this->addParam($value, $type);
         }
 
         return $this;
@@ -374,7 +376,7 @@ class Select
         // $stmt->execute() returns a bool if it worked or not... we will extend use later
         $result = $stmt->execute();
         if (!$result) {
-            $errorCode   = $stmt->errorCode();
+            $errorCode = $stmt->errorCode();
             $errorString = $stmt->errorInfo()[2];
             throw new SelectException($errorString, $errorCode);
         }
@@ -412,20 +414,29 @@ class Select
         // If the where clause has data, then we include the WHERE, otherwise we leave it off
         $query = $this->statement;
 
-        if ($this->set_clause != '') {
-            $query .= ' SET ' . $this->set_clause;
+        if (count($this->setFields) > 0) {
+            if (count($this->setTmp) > 0) {
+                // This will throw an exception if they didn't properly set all the values to have the same quantity
+                $this->setNext();
+            }
+            $query .= '(' . implode(', ', array_keys($this->setFields)) . ') VALUES ';
+            $values = array();
+            foreach ($this->setValues as $row) {
+                $values[] = '(' . implode(', ', $row) . ')';
+            }
+            $query .= implode(', ', $values);
         }
 
-        if ($this->where_clause != '') {
-            $query .= ' WHERE ' . $this->where_clause;
+        if ($this->whereClause != '') {
+            $query .= ' WHERE ' . $this->whereClause;
         }
 
-        if (!is_null($this->group_by)) {
-            $query .= ' GROUP BY ' . $this->group_by;
+        if (!is_null($this->groupBy)) {
+            $query .= ' GROUP BY ' . $this->groupBy;
         }
 
-        if (!is_null($this->order_by)) {
-            $query .= ' ORDER BY ' . $this->order_by;
+        if (!is_null($this->orderBy)) {
+            $query .= ' ORDER BY ' . $this->orderBy;
         }
 
         if (!is_null($this->limit)) {
@@ -437,6 +448,29 @@ class Select
         }
 
         return $query;
+    }
+
+    /**
+     * The current values set by set, are confirmed
+     *
+     * @throws \select\SelectException
+     * @return \select\Select
+     */
+    public function setNext()
+    {
+        $setTmpCount = count($this->setTmp);
+        if (count($this->setValues) > 0 && count($this->setValues[0]) != $setTmpCount) {
+            throw new SelectException('All rows being added or updated must have the same number of values.');
+        }
+
+        if (count(array_diff_key($this->setFields, $this->setValues[0])) > 0) {
+            throw new SelectException('All rows must be using the same fields for inserting.');
+        }
+
+        $this->setValues[] = $this->setTmp;
+        $this->setTmp = array();
+
+        return $this;
     }
 
     /**
@@ -489,18 +523,17 @@ class Select
     }
 
     /**
-     * This will return an MD Array of all of the results.
+     * This will return the count of all the rows founds
      *
-     * @return array
+     * @return int
      */
     public function getRowCount()
     {
-        $count = 0;
-        if ($this->result instanceof \PDOStatement) {
-            $count = $this->result->rowCount();
+        if (!$this->result instanceof \PDOStatement) {
+            return 0;
         }
 
-        return $count;
+        return $this->result->rowCount();
     }
 
     /**
@@ -527,6 +560,21 @@ class Select
     }
 
     /**
+     * This will returns the next row
+     *
+     * @param int $fetchType
+     * @return false|array
+     */
+    public function getRow($fetchType = \PDO::FETCH_ASSOC)
+    {
+        if (!$this->result instanceof \PDOStatement) {
+            return false;
+        }
+
+        return $this->result->fetch($fetchType);
+    }
+
+    /**
      * Sets the grouping of the Query
      *
      * @param string $group_by What fields should be grouped by?
@@ -534,7 +582,7 @@ class Select
      */
     public function group($group_by)
     {
-        $this->group_by = $group_by;
+        $this->groupBy = $group_by;
 
         return $this;
     }
@@ -583,16 +631,16 @@ class Select
                 $subselect .= $this->addParam($subvalue, $type);
             }
             $this->SetConnection();
-            $this->where_clause .= ' ' . $field . $not_string . ' IN (' . $subselect . ')';
+            $this->whereClause .= ' ' . $field . $not_string . ' IN (' . $subselect . ')';
         } else {
             if ($value instanceof Select) {
                 $sql = $value->getQuery();
                 $this->params = array_merge($this->params, $value->GetParams());
                 $this->SetConnection();
-                $this->where_clause .= ' ' . $field . $not_string . ' IN (' . $sql . ')';
+                $this->whereClause .= ' ' . $field . $not_string . ' IN (' . $sql . ')';
             } else {
                 $this->SetConnection();
-                $this->where_clause .= ' ' . $field . $not_string . ' IN (' . $value . ')';
+                $this->whereClause .= ' ' . $field . $not_string . ' IN (' . $value . ')';
             }
         }
 
@@ -629,7 +677,7 @@ class Select
 
             // Convert a bool into the literal strings used by enum in the db layer
             $this->SetConnection();
-            $this->where_clause .= ' ' . $field . ' LIKE ' . $this->addParam($value, $type);
+            $this->whereClause .= ' ' . $field . ' LIKE ' . $this->addParam($value, $type);
         }
 
         return $this;
@@ -665,7 +713,7 @@ class Select
             $value = $value ? $this->$booleanTrue : $this->$booleanFalse;
         }
         $this->SetConnection();
-        $this->where_clause .= ' ' . $field . ' != ' . $this->addParam($value, $type);
+        $this->whereClause .= ' ' . $field . ' != ' . $this->addParam($value, $type);
 
         return $this;
     }
@@ -693,13 +741,13 @@ class Select
      */
     public function order($order_by)
     {
-        $this->order_by = $order_by;
+        $this->orderBy = $order_by;
 
         return $this;
     }
 
     /**
-     * Sets values for inserting or updating
+     * Sets values for inserting or updating a single row
      *
      * @param string $field What is the Table field
      * @param mixed $value What value are you comparing
@@ -708,10 +756,11 @@ class Select
      */
     public function set($field, $value, $type = \PDO::PARAM_STR)
     {
-        if ($this->set_clause != '') {
-            $this->set_clause .= rtrim(", \n ");
+        if (!array_key_exists($field, $this->setFields)) {
+            $this->setFields[$field] = $type;
         }
-        $this->set_clause .= ' ' . $field . ' = ' . $this->addParam($value, $type);
+
+        $this->setTmp[$field] = $this->addParam($value, $type);
 
         return $this;
     }
@@ -724,7 +773,7 @@ class Select
     public function startAnd()
     {
         $this->SetConnection();
-        $this->where_clause .= " (";
+        $this->whereClause .= " (";
         $this->where_mode[] = "AND";
 
         return $this;
@@ -738,8 +787,69 @@ class Select
     public function startOr()
     {
         $this->SetConnection();
-        $this->where_clause .= " (";
+        $this->whereClause .= " (";
         $this->where_mode[] = "OR";
+
+        return $this;
+    }
+
+    /**
+     * Starts a transaction
+     *
+     * If you use $ignoreAlreadyExisting it will let you call this function even if a transaction is already started
+     *   without throwing an exception.
+     *
+     * @return $this
+     * @throws SelectException
+     */
+    public function transactionStart($ignoreAlreadyExisting = false)
+    {
+        if (!$this->connect()) {
+            throw new SelectException('Could not connect to database.');
+        }
+
+        if (!$this->pdo->inTransaction()) {
+            if ($ignoreAlreadyExisting) {
+                return $this;
+            }
+            throw new SelectException('Already inside transaction.');
+        }
+
+        $this->pdo->beginTransaction();
+
+        return $this;
+    }
+
+    /**
+     * Rolls back the active transaction
+     *
+     * @return $this
+     * @throws SelectException
+     */
+    public function transactionRollback()
+    {
+        if (!$this->connect()) {
+            throw new SelectException('Could not connect to database.');
+        }
+
+        $this->pdo->rollBack();
+
+        return $this;
+    }
+
+    /**
+     * Commits the active transaction
+     *
+     * @return $this
+     * @throws SelectException
+     */
+    public function transactionCommit()
+    {
+        if (!$this->connect()) {
+            throw new SelectException('Could not connect to database.');
+        }
+
+        $this->pdo->commit();
 
         return $this;
     }
