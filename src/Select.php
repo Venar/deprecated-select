@@ -222,7 +222,7 @@ class Select
             if (is_bool($value)) {
                 $value = $value ? $this->$booleanTrue : $this->$booleanFalse;
             }
-            $this->SetConnection();
+            $this->addConjunction();
             $this->whereClause .= ' ' . $field . ' = ' . $this->addParam($value, $type);
         }
 
@@ -248,7 +248,7 @@ class Select
      */
     public function eqNull($field)
     {
-        $this->SetConnection();
+        $this->addConjunction();
         $this->whereClause .= ' ' . $field . ' IS NULL ';
 
         return $this;
@@ -262,7 +262,7 @@ class Select
      */
     public function eqNotNull($field)
     {
-        $this->SetConnection();
+        $this->addConjunction();
         $this->whereClause .= ' ' . $field . ' IS NOT NULL ';
 
         return $this;
@@ -281,7 +281,7 @@ class Select
         if (trim($value) != "" || is_bool($value)) {
             $this->eq($field, $value, $type);
         } else {
-            $this->SetConnection();
+            $this->addConjunction();
             $this->whereClause .= ' 1 = 0';
         }
 
@@ -302,7 +302,7 @@ class Select
         if (is_bool($value)) {
             $value = $value ? $this->$booleanTrue : $this->$booleanFalse;
         }
-        $this->SetConnection();
+        $this->addConjunction();
         $this->whereClause .= ' ' . $field . ' = ' . $this->addParam($value, $type);
 
         return $this;
@@ -630,16 +630,16 @@ class Select
                 }
                 $subselect .= $this->addParam($subvalue, $type);
             }
-            $this->SetConnection();
+            $this->addConjunction();
             $this->whereClause .= ' ' . $field . $not_string . ' IN (' . $subselect . ')';
         } else {
             if ($value instanceof Select) {
                 $sql = $value->getQuery();
                 $this->params = array_merge($this->params, $value->GetParams());
-                $this->SetConnection();
+                $this->addConjunction();
                 $this->whereClause .= ' ' . $field . $not_string . ' IN (' . $sql . ')';
             } else {
-                $this->SetConnection();
+                $this->addConjunction();
                 $this->whereClause .= ' ' . $field . $not_string . ' IN (' . $value . ')';
             }
         }
@@ -676,7 +676,7 @@ class Select
             }
 
             // Convert a bool into the literal strings used by enum in the db layer
-            $this->SetConnection();
+            $this->addConjunction();
             $this->whereClause .= ' ' . $field . ' LIKE ' . $this->addParam($value, $type);
         }
 
@@ -712,7 +712,7 @@ class Select
         if (is_bool($value)) {
             $value = $value ? $this->$booleanTrue : $this->$booleanFalse;
         }
-        $this->SetConnection();
+        $this->addConjunction();
         $this->whereClause .= ' ' . $field . ' != ' . $this->addParam($value, $type);
 
         return $this;
@@ -772,7 +772,7 @@ class Select
      */
     public function startAnd()
     {
-        $this->SetConnection();
+        $this->addConjunction();
         $this->whereClause .= " (";
         $this->where_mode[] = "AND";
 
@@ -786,7 +786,7 @@ class Select
      */
     public function startOr()
     {
-        $this->SetConnection();
+        $this->addConjunction();
         $this->whereClause .= " (";
         $this->where_mode[] = "OR";
 
