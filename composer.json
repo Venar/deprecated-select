@@ -1,7 +1,23 @@
 {
     "name": "venar/select",
+    "type": "library",
     "description": "PHP Class to build queries for MySQL. Allows you to build chains of conditions. The goal of this class is to encapsulate PHP's interactions with MySQL to reduce errors in writing queries and make creating stored procedures simple.",
+    "keywords": ["log","mysql"],
+    "homepage": "https://github.com/venar/select",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "John J Koniges",
+            "email": "john@koniges.net",
+            "role": "Developer"
+        }
+    ],
     "require": {
         "php": ">=5.5.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Select": "src"
+        }
     }
 }
