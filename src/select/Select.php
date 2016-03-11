@@ -220,7 +220,7 @@ class Select
         if (trim($value) != "" || is_bool($value)) {
             // Convert a bool into the literal strings used by enum in the db layer
             if (is_bool($value)) {
-                $value = $value ? $this->$booleanTrue : $this->$booleanFalse;
+                $value = $value ? $this->booleanTrue : $this->booleanFalse;
             }
             $this->addConjunction();
             $this->whereClause .= ' ' . $field . ' = ' . $this->addParam($value, $type);
@@ -300,7 +300,7 @@ class Select
     {
         // Convert a bool into the literal strings used by enum in the db layer
         if (is_bool($value)) {
-            $value = $value ? $this->$booleanTrue : $this->$booleanFalse;
+            $value = $value ? $this->booleanTrue : $this->booleanFalse;
         }
         $this->addConjunction();
         $this->whereClause .= ' ' . $field . ' = ' . $this->addParam($value, $type);

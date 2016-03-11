@@ -1,5 +1,5 @@
 {
-    "name": "venar/select",
+    "name": "Venar/select",
     "version": "1.01",
     "minimum-stability": "dev",
     "type": "library",
@@ -19,7 +19,7 @@
     },
     "autoload": {
         "psr-4": {
-            "Select": "src"
+            "Select\\": "src/"
         }
     }
 }
